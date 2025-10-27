@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Users as UsersIcon, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Users as UsersIcon, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 

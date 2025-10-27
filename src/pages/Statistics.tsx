@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, User, Target } from 'lucide-react';
+import { TrendingUp, Target } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 

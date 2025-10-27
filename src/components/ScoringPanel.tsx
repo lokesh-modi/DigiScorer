@@ -65,7 +65,7 @@ export default function ScoringPanel({ matchId, match, onUpdate }: ScoringPanelP
       const actualBallNumber = ballNumber > 6 ? 1 : ballNumber;
       const isLegalDelivery = !extras || (extras !== 'Wide' && extras !== 'No Ball');
 
-      const { data: ballData, error: ballError } = await supabase
+      const { error: ballError } = await supabase
         .from('ball_by_ball')
         .insert({
           innings_id: currentInnings.id,
@@ -101,42 +101,97 @@ export default function ScoringPanel({ matchId, match, onUpdate }: ScoringPanelP
 
       if (inningsError) throw inningsError;
 
+      // Fetch current batting stats
+      const { data: currentBatsmanStats } = await supabase
+        .from('batting_scores')
+        .select('*')
+        .eq('innings_id', currentInnings.id)
+        .eq('player_id', striker.id)
+        .maybeSingle();
+
+      const currentRuns = currentBatsmanStats?.runs || 0;
+      const currentBalls = currentBatsmanStats?.balls_faced || 0;
+      const currentFours = currentBatsmanStats?.fours || 0;
+      const currentSixes = currentBatsmanStats?.sixes || 0;
+      const battingPosition = currentBatsmanStats?.batting_position || 1;
+
       const { error: batError } = await supabase
         .from('batting_scores')
         .upsert({
           innings_id: currentInnings.id,
           player_id: striker.id,
-          runs: (striker.runs || 0) + runs,
-          balls_faced: (striker.balls_faced || 0) + (isLegalDelivery ? 1 : 0),
-          fours: (striker.fours || 0) + (runs === 4 && !extras ? 1 : 0),
-          sixes: (striker.sixes || 0) + (runs === 6 && !extras ? 1 : 0),
-          strike_rate: ((striker.runs || 0) + runs) / ((striker.balls_faced || 0) + (isLegalDelivery ? 1 : 0)) * 100,
-          is_out: isWicket || false,
-          dismissal_type: isWicket ? 'Out' : null,
-          batting_position: striker.batting_position || 1,
+          runs: currentRuns + runs,
+          balls_faced: currentBalls + (isLegalDelivery ? 1 : 0),
+          fours: currentFours + (runs === 4 && !extras ? 1 : 0),
+          sixes: currentSixes + (runs === 6 && !extras ? 1 : 0),
+          strike_rate: (() => {
+            const totalBalls = currentBalls + (isLegalDelivery ? 1 : 0);
+            return totalBalls > 0 ? parseFloat((((currentRuns + runs) / totalBalls) * 100).toFixed(2)) : 0;
+          })(),
+          is_out: isWicket || (currentBatsmanStats?.is_out || false),
+          dismissal_type: isWicket ? 'Out' : (currentBatsmanStats?.dismissal_type || null),
+          batting_position: battingPosition,
         }, {
           onConflict: 'innings_id,player_id',
         });
 
       if (batError) throw batError;
 
-      const bowlerOvers = isLegalDelivery ? (bowler.overs || 0) + 0.1 : (bowler.overs || 0);
+      // Fetch current bowling stats
+      const { data: currentBowlerStats } = await supabase
+        .from('bowling_figures')
+        .select('*')
+        .eq('innings_id', currentInnings.id)
+        .eq('player_id', bowler.id)
+        .maybeSingle();
+
+      const bowlerOvers = isLegalDelivery ? (currentBowlerStats?.overs || 0) + 0.1 : (currentBowlerStats?.overs || 0);
+      const currentRunsConceded = currentBowlerStats?.runs_conceded || 0;
+      const currentWickets = currentBowlerStats?.wickets || 0;
+      const currentWides = currentBowlerStats?.wides || 0;
+      const currentNoBalls = currentBowlerStats?.no_balls || 0;
+
       const { error: bowlError } = await supabase
         .from('bowling_figures')
         .upsert({
           innings_id: currentInnings.id,
           player_id: bowler.id,
           overs: bowlerOvers,
-          runs_conceded: (bowler.runs_conceded || 0) + totalRunsToAdd,
-          wickets: (bowler.wickets || 0) + (isWicket ? 1 : 0),
-          wides: (bowler.wides || 0) + (extras === 'Wide' ? 1 : 0),
-          no_balls: (bowler.no_balls || 0) + (extras === 'No Ball' ? 1 : 0),
-          economy_rate: ((bowler.runs_conceded || 0) + totalRunsToAdd) / Math.floor(bowlerOvers),
+          runs_conceded: currentRunsConceded + totalRunsToAdd,
+          wickets: currentWickets + (isWicket ? 1 : 0),
+          wides: currentWides + (extras === 'Wide' ? 1 : 0),
+          no_balls: currentNoBalls + (extras === 'No Ball' ? 1 : 0),
+          economy_rate: (() => {
+            const fullOvers = Math.floor(bowlerOvers);
+            return fullOvers > 0 ? parseFloat(((currentRunsConceded + totalRunsToAdd) / fullOvers).toFixed(2)) : 0;
+          })(),
         }, {
           onConflict: 'innings_id,player_id',
         });
 
       if (bowlError) throw bowlError;
+
+      // Update striker stats if they're the current striker
+      if (striker && striker.id) {
+        const { data: updatedStrikerStats } = await supabase
+          .from('batting_scores')
+          .select('*')
+          .eq('innings_id', currentInnings.id)
+          .eq('player_id', striker.id)
+          .maybeSingle();
+        setStriker({ ...striker, ...updatedStrikerStats, runs: updatedStrikerStats?.runs || striker.runs || 0 });
+      }
+
+      // Update bowler stats if they're the current bowler
+      if (bowler && bowler.id) {
+        const { data: updatedBowlerStats } = await supabase
+          .from('bowling_figures')
+          .select('*')
+          .eq('innings_id', currentInnings.id)
+          .eq('player_id', bowler.id)
+          .maybeSingle();
+        setBowler({ ...bowler, ...updatedBowlerStats, wickets: updatedBowlerStats?.wickets || bowler.wickets || 0, runs_conceded: updatedBowlerStats?.runs_conceded || bowler.runs_conceded || 0 });
+      }
 
       if (runs % 2 === 1 || actualBallNumber === 6) {
         const temp = striker;
@@ -146,9 +201,9 @@ export default function ScoringPanel({ matchId, match, onUpdate }: ScoringPanelP
 
       loadCurrentInnings();
       onUpdate();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error recording ball:', error);
-      alert('Failed to record ball. Please try again.');
+      alert(`Failed to record ball: ${error.message || 'Unknown error'}. Please check the console for details.`);
     }
   };
 
@@ -318,10 +373,33 @@ export default function ScoringPanel({ matchId, match, onUpdate }: ScoringPanelP
         <PlayerSelector
           teamId={selectorType === 'bowler' ? match.bowling_team_id : match.batting_team_id}
           inningsId={currentInnings?.id}
-          onSelect={(player) => {
-            if (selectorType === 'striker') setStriker(player);
-            else if (selectorType === 'nonStriker') setNonStriker(player);
-            else setBowler(player);
+          onSelect={async (player) => {
+            // Fetch current stats for the player
+            if (selectorType === 'striker') {
+              const { data: stats } = await supabase
+                .from('batting_scores')
+                .select('*')
+                .eq('innings_id', currentInnings?.id)
+                .eq('player_id', player.id)
+                .maybeSingle();
+              setStriker({ ...player, ...stats, runs: stats?.runs || 0, balls_faced: stats?.balls_faced || 0 });
+            } else if (selectorType === 'nonStriker') {
+              const { data: stats } = await supabase
+                .from('batting_scores')
+                .select('*')
+                .eq('innings_id', currentInnings?.id)
+                .eq('player_id', player.id)
+                .maybeSingle();
+              setNonStriker({ ...player, ...stats, runs: stats?.runs || 0, balls_faced: stats?.balls_faced || 0 });
+            } else {
+              const { data: stats } = await supabase
+                .from('bowling_figures')
+                .select('*')
+                .eq('innings_id', currentInnings?.id)
+                .eq('player_id', player.id)
+                .maybeSingle();
+              setBowler({ ...player, ...stats, wickets: stats?.wickets || 0, runs_conceded: stats?.runs_conceded || 0 });
+            }
             setShowPlayerSelector(false);
           }}
           onClose={() => setShowPlayerSelector(false)}

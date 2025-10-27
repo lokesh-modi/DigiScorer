@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase';
 
 interface ScoreboardProps {
   matchId: string;
-  match: any;
 }
 
 interface InningsData {
@@ -32,7 +31,7 @@ interface InningsData {
   }>;
 }
 
-export default function Scoreboard({ matchId, match }: ScoreboardProps) {
+export default function Scoreboard({ matchId }: ScoreboardProps) {
   const [innings, setInnings] = useState<InningsData[]>([]);
   const [loading, setLoading] = useState(true);
 

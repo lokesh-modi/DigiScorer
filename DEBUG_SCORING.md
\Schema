@@ -1,0 +1,47 @@
+# Debugging "Failed to Record Ball" Error
+
+## What I've Fixed
+
+1. ✅ Improved error messages to show the actual error
+2. ✅ Fixed strike rate calculation to prevent NaN/Infinity
+3. ✅ Fixed economy rate calculation to prevent division by zero
+
+## Most Likely Issues
+
+### Issue 1: Batting Position Not Set
+When a new batsman comes to bat, the `batting_position` defaults to 1. This could conflict with existing records.
+
+**Solution**: Need to track batting position per innings.
+
+### Issue 2: Players Not Created in Database
+The selected players might not be added to the database yet.
+
+**Solution**: The PlayerSelector creates players if needed, but we should verify this works.
+
+### Issue 3: Foreign Key Constraints
+The `batting_scores` table has these constraints:
+- `player_id` references `players(id) ON DELETE RESTRICT`
+- `batting_position` is NOT NULL
+
+## Debugging Steps
+
+1. **Check Browser Console** - The error message now shows the exact database error
+2. **Check if players exist** - Make sure players are created before selecting them
+3. **Check batting_position** - Make sure it's set correctly
+
+## Quick Test
+
+Try this sequence:
+1. Create a match
+2. Select striker, non-striker, and bowler (create them if needed)
+3. Click a run button (e.g., "1")
+4. Check the browser console for the error message
+5. Share the error message so I can fix the exact issue
+
+## Common Errors
+
+- **Foreign key violation**: Player doesn't exist
+- **NOT NULL violation**: batting_position is missing  
+- **Unique constraint**: Trying to insert duplicate batting position
+- **Permission denied**: RLS policy issue (unlikely)
+

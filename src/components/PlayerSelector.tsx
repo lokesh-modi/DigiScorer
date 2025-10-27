@@ -43,10 +43,20 @@ export default function PlayerSelector({ teamId, inningsId, onSelect, onClose }:
       const playersWithStats = (data || []).map(player => {
         const batting = battingScores?.find(b => b.player_id === player.id);
         const bowling = bowlingFigures?.find(b => b.player_id === player.id);
+        
+        // Extract stats without the id field to prevent overwriting player.id
+        const battingStats = batting ? Object.fromEntries(
+          Object.entries(batting).filter(([key]) => key !== 'id')
+        ) : {};
+        
+        const bowlingStats = bowling ? Object.fromEntries(
+          Object.entries(bowling).filter(([key]) => key !== 'id')
+        ) : {};
+        
         return {
           ...player,
-          ...batting,
-          ...bowling,
+          ...battingStats,
+          ...bowlingStats,
         };
       });
 
@@ -62,7 +72,7 @@ export default function PlayerSelector({ teamId, inningsId, onSelect, onClose }:
     if (!newPlayerName.trim()) return;
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('players')
         .insert({
           user_id: user!.id,

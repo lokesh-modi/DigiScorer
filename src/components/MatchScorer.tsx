@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Undo } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import TossModal from './TossModal';
 import ScoringPanel from './ScoringPanel';
 import Scoreboard from './Scoreboard';
@@ -28,7 +27,6 @@ interface Match {
 }
 
 export default function MatchScorer({ matchId, onBack }: MatchScorerProps) {
-  const { user } = useAuth();
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
   const [showToss, setShowToss] = useState(false);
@@ -165,13 +163,13 @@ export default function MatchScorer({ matchId, onBack }: MatchScorerProps) {
 
       {match.status === 'In Progress' && (
         <div className="space-y-6">
-          <Scoreboard matchId={matchId} match={match} />
+          <Scoreboard matchId={matchId} />
           <ScoringPanel matchId={matchId} match={match} onUpdate={loadMatch} />
         </div>
       )}
 
       {match.status === 'Completed' && (
-        <Scoreboard matchId={matchId} match={match} />
+        <Scoreboard matchId={matchId} />
       )}
     </div>
   );
